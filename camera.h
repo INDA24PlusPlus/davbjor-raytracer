@@ -63,8 +63,8 @@ class camera {
             if(depth == 0)return color(0,0,0);
 
             hit_record rec;
-            interval ray_t(0, infinity);
-            if(world.hit(r, ray_t, rec)){
+            
+            if(world.hit(r, interval(0.00000001, infinity), rec)){
                 ray scattered;
                 color attenuation;
 

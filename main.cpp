@@ -17,8 +17,10 @@
 int main(){
     // World
     // Materials
-    auto material_left = make_shared<metal>(color(0.1, 0.7, 0.2), 0.2);
-    auto material_right = make_shared<metal>(color(0.2, 0.1, 0.7));
+    auto material_left = make_shared<metal>(color(0.1, 0.7, 0.2), 0.02);
+    //auto material_right = make_shared<metal>(color(0.2, 0.1, 0.7));
+    auto material_right = make_shared<dielectic>(1.05);
+
 
     auto material_ground = make_shared<lambertian>(color(0.5, 0.5, 0.5));
     auto material_center = make_shared<lambertian>(color(0.7, 0.2, 0.1));
@@ -30,14 +32,14 @@ int main(){
     sphere s4(vec3(0, -100.5, -1), 100, material_ground);*/
 
     hittable_list world;
-    world.add(make_shared<sphere>(vec3(-1, 0, -1), 0.5, material_left));
-    world.add(make_shared<sphere>(vec3(0, 0, -1), 0.5, material_center));
-    world.add(make_shared<sphere>(vec3(1, 0, -1), 0.5, material_right));
+    world.add(make_shared<sphere>(vec3(-2, 0.5, -2), 1, material_left));
+    world.add(make_shared<sphere>(vec3(0, 0.5, -2), 1, material_center));
+    world.add(make_shared<sphere>(vec3(-0.55, 0, -1), 0.25, material_right));
     world.add(make_shared<sphere>(vec3(0, -100.5, -1), 100, material_ground));
 
 
     camera cam;
-    cam.screen_width = 1200;
+    cam.screen_width = 3600;
     cam.aspect_ratio = 16.0 / 9.0;
     cam.max_depth = 40;
 

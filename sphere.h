@@ -51,18 +51,18 @@ bool sphere::hit(const ray& r, interval ray_t, hit_record& rec) const {
     // Returns the nearest root that lies in the acceptable range
     auto root = (-half_b - sqrtd) / a;
     if(!ray_t.surrounds(root)){
-        return false;
+        // Reading second hit
+        root = (-half_b + sqrtd) / a;
+        if(!ray_t.surrounds(root)){
+            return false;
+        }
     }
 
     rec.t = root;
     rec.p = r.at(rec.t);
-    rec.normal = (rec.p - center) / radius;
+    vec3 outward_normal = (rec.p - center) / radius;
 
-    /*
-    vec3 direction = reflect(r.direction(), rec.normal);
-    vec3 random_direction = rec.normal + random_in_unit_sphere();
-    vec3 semi_diffuse_direction = unit_vector(0.8 * direction + 0.2 * random_direction);
-    */
+    rec.set_face_normal(r, outward_normal);
    
     rec.mat = mat;
     
