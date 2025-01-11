@@ -1,58 +1,47 @@
 #include "vec3.h"
 #include "ray.h"
+#include "hittable.h"
 #include "sphere.h"
+#include "hittable_list.h"
 #include "color.h"
+#include "camera.h"
+#include "material.h"
+#include "utils.h"
 
 #include <iostream>
 #include <fstream>
 #include <vector>
 
+#define infinity std::numeric_limits<double>::infinity()
 
 int main(){
-    // Screen properties
-    const int screen_width = 800;
-    const double aspect_ratio = 16.0 / 9.0;
-    const int screen_height = static_cast<int>(screen_width / aspect_ratio);
+    // World
+    // Materials
+    auto material_left = make_shared<metal>(color(0.1, 0.7, 0.2), 0.2);
+    auto material_right = make_shared<metal>(color(0.2, 0.1, 0.7));
 
-    // Camera properties
-    auto viewport_height = 2.0;
-    auto viewport_width = aspect_ratio * viewport_height;
-    auto focal_length = 1.0;
-
-    auto origin = point3(0,0,0);
-    auto horizontal = vec3(viewport_width, 0, 0);
-    auto vertical = vec3(0, viewport_height, 0);
-    auto lower_left = origin - horizontal/2 - vertical/2 - vec3(0,0,focal_length);
+    auto material_ground = make_shared<lambertian>(color(0.5, 0.5, 0.5));
+    auto material_center = make_shared<lambertian>(color(0.7, 0.2, 0.1));
 
     // Creating objects
-    sphere s1(vec3(0, 0, -5), 2.0);
+    /*sphere s1(vec3(-1, 0, -1), 0.5, color(0.4, 0.9, 0.3), true);
+    sphere s2(vec3(0, 0, -1), 0.5, material_center);
+    sphere s3(vec3(1, 0, -1), 0.5, color(0.9, 0.3, 0.4), true);
+    sphere s4(vec3(0, -100.5, -1), 100, material_ground);*/
 
-    vector<sphere> spheres {s1};
+    hittable_list world;
+    world.add(make_shared<sphere>(vec3(-1, 0, -1), 0.5, material_left));
+    world.add(make_shared<sphere>(vec3(0, 0, -1), 0.5, material_center));
+    world.add(make_shared<sphere>(vec3(1, 0, -1), 0.5, material_right));
+    world.add(make_shared<sphere>(vec3(0, -100.5, -1), 100, material_ground));
 
 
-    // Rendering
-    std::ofstream out_file{"out.ppm"};
-    out_file << "P3\n" << screen_width << ' ' << screen_height << "\n255\n";
+    camera cam;
+    cam.screen_width = 1200;
+    cam.aspect_ratio = 16.0 / 9.0;
+    cam.max_depth = 40;
 
-    for(int j = screen_height - 1; j >= 0; j--){
-        for(int i = 0; i < screen_width; i++) {
-            auto u = double(i) / (screen_width - 1);
-            auto v = double(j) / (screen_height - 1);
-            ray r(origin, lower_left + u * horizontal + v * vertical - origin);
-
-            color pixel_color = getColor(r);
-            for(auto s : spheres){
-                double t = s.intersect(r);
-
-                if(t > 0.0){
-                    vec3 n = normalize(r.at(t) - s.center);
-
-                    pixel_color = 0.5 * color(n.x()+1, n.y()+1, n.z()+1);
-                }
-            }
-            write_color(out_file, pixel_color);
-        }
-    }
+    cam.render(world);
 
     return 0;
 }
