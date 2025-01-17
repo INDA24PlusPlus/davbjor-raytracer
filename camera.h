@@ -60,23 +60,63 @@ class camera {
         }
 
         color ray_color(const ray& r, int depth, const hittable& world){
-            if(depth == 0)return color(0,0,0);
+            if(depth == 0)return color(0.1,0.1,0.1);
 
             hit_record rec;
             
-            if(world.hit(r, interval(0.00000001, infinity), rec)){
-                ray scattered;
-                color attenuation;
-
-                rec.mat->scatter(r, rec, attenuation, scattered);
-                return attenuation * ray_color(scattered, depth - 1, world);
-                // Send a new ray
-                //return (0.999 * rec.attenuation + 0.01 * color(1,1,1)) * ray_color(rec.scattered, depth - 1, world);
+            if(!world.hit(r, interval(0.00000001, infinity), rec)){
+                // Background Color Property
+                vec3 unit_v = unit_vector(r.direction());
+                auto t = 0.5*(unit_v.y() + 1.0);
+                return (1.0-t) * color(1.0, 1.0, 1.0) + t * color(0.5, 0.7, 1.0);
             }
 
-            vec3 unit_v = unit_vector(r.direction());
-            auto t = 0.5*(unit_v.y() + 1.0);
-            return (1.0-t) * color(1.0, 1.0, 1.0) + t * color(0.5, 0.7, 1.0);
+            ray scattered;
+            color attenuation;
+            double pdf_value;
+
+            rec.mat->scatter(r, rec, attenuation, scattered);
+
+            auto on_light = point3(random_double(-60,60), 200, random_double(-60,60));
+            auto to_light = on_light - rec.p;
+            auto distance_squared = to_light.length_squared();
+            to_light = unit_vector(to_light);
+
+            auto shadow_light = point3(0, 200, 0);
+            auto to_shadow_light = unit_vector(shadow_light - rec.p);
+
+            if (dot(to_light, rec.normal) < 0)
+                return 0.6 * attenuation * ray_color(scattered, depth - 1, world);
+
+            //double light_area = (343-213)*(332-227);
+            double light_area = (120)*(120);
+            auto light_cosine = std::fabs(to_light.y());
+
+            if (light_cosine < 0.000001)
+                return 0.6 * attenuation * ray_color(scattered, depth - 1, world);
+
+            pdf_value = distance_squared / (light_cosine * light_area);
+            
+            ray lightray = ray(rec.p, to_light);
+            ray shadowray = ray(rec.p, to_shadow_light);
+            if(world.hit(shadowray, interval(0.00000001, infinity), rec)){
+                return 0.3 * attenuation * ray_color(scattered, depth - 1, world);
+            }
+
+            if(world.hit(lightray, interval(0.00000001, infinity), rec)){
+                return 0.5 * attenuation * ray_color(scattered, depth - 1, world);
+            }
+
+            /*color color_from_scatter = color(1,1,1) - (attenuation * ray_color(lightray, depth-1, world))  pdf_value;
+
+            color next = ray_color(scattered, depth - 1, world);*/
+
+            return attenuation * ray_color(scattered, depth - 1, world) * interval(0.2,1).clamp(pdf_value);
+            /*
+
+            */
+
+
         }
 };
 
