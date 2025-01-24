@@ -2,7 +2,9 @@
 #define MATERIAL_H
 
 #include "vec3.h"
+#include "vec4.h"
 #include "ray.h"
+#include "ray4.h"
 #include "hittable.h"
 #include "utils.h"
 
@@ -11,6 +13,13 @@ class material {
         virtual ~material() = default;
 
         virtual bool scatter(const ray& r_in, const hit_record& rec, color &attenuation, ray& scattered) const = 0;
+
+        virtual bool fast_scatter(const ray& r_in, const hit_record& rec, color &attenuation, ray& scattered) const = 0;
+
+        virtual bool scatter4(const ray4& r_in, const hit_record4& rec, color &attenuation, ray4& scattered) const = 0;
+
+        virtual bool simd_scatter(const ray4& r_in4, const hit_record4& rec4, color &attenuation, ray4& scattered4) const = 0;
+
 };
 
 class lambertian : public material {
@@ -20,6 +29,29 @@ class lambertian : public material {
         bool scatter(const ray& r_in, const hit_record& rec, color &attenuation, ray& scattered) const override {
             vec3 scatter_direction = rec.normal + random_unit_vector();
             scattered = ray(rec.p, scatter_direction);
+            attenuation = albedo;
+            return true;
+        }
+
+        bool fast_scatter(const ray& r_in, const hit_record& rec, color &attenuation, ray& scattered) const override {
+            vec3 scatter_direction = rec.normal + random_unit_vector();
+            scattered = ray(rec.p, scatter_direction);
+            attenuation = albedo;
+            return true;
+        }
+
+        bool scatter4(const ray4& r_in4, const hit_record4& rec4, color &attenuation, ray4& scattered4) const override {
+            vec4 scatter_direction = rec4.normal + random_unit_vector_4();
+            scattered4 = ray4(rec4.p, scatter_direction);
+            attenuation = albedo;
+            
+            return true;
+        }
+
+        bool simd_scatter(const ray4& r_in4, const hit_record4& rec4, color &attenuation, ray4& scattered4) const override {
+            //cout << "lambertian scatter\n";
+            vec4 scatter_direction = simd_add(rec4.normal, random_unit_vector_4());
+            scattered4 = ray4(rec4.p, scatter_direction);
             attenuation = albedo;
             return true;
         }
@@ -39,6 +71,33 @@ class metal : public material {
             attenuation = albedo;
             // Returns if ray was absorbed
             return (dot(scattered.direction(), rec.normal) > 0);
+        }
+
+        bool fast_scatter(const ray& r_in, const hit_record& rec, color &attenuation, ray& scattered) const override {
+            vec4 norm4 = rec.normal;
+            vec3 reflected = simd_reflect(vec4(unit_vector(r_in.direction())), norm4);
+            vec4 scatdir = simd_add_mul(vec4(reflected), vec4(random_unit_vector()), fuzz);
+            scattered = ray(rec.p, scatdir);
+            attenuation = albedo;
+            // Returns if ray was absorbed
+            return (simd_dot(scatdir, norm4) > 0);
+        }
+
+        bool scatter4(const ray4& r_in4, const hit_record4& rec4, color &attenuation, ray4& scattered4) const override {
+            vec4 reflected = reflect(unit_vector(r_in4.direction()), rec4.normal);
+            scattered4 = ray4(rec4.p, reflected + fuzz * random_unit_vector_4());
+            attenuation = albedo;
+            // Returns if ray was absorbed
+            return (dot(scattered4.direction(), rec4.normal) > 0);
+        }
+
+        bool simd_scatter(const ray4& r_in4, const hit_record4& rec4, color &attenuation, ray4& scattered4) const override {
+            //cout << "metal scatter\n";
+            vec4 reflected = simd_reflect(unit_vector(r_in4.direction()), rec4.normal);
+            scattered4 = ray4(rec4.p, simd_add(reflected, simd_mul(random_unit_vector_4(), fuzz)));
+            attenuation = albedo;
+            // Returns if ray was absorbed
+            return (simd_dot(scattered4.direction(), rec4.normal) > 0.001);
         }
 
     private:
@@ -69,6 +128,18 @@ class dielectic : public material {
             scattered = ray(rec.p, direction);
             attenuation = color(1,1,1);
             return true;
+        }
+
+        bool fast_scatter(const ray& r_in, const hit_record& rec, color &attenuation, ray& scattered) const override {
+            return false;
+        }
+        
+        bool scatter4(const ray4& r_in4, const hit_record4& rec4, color &attenuation, ray4& scattered4) const override {
+            return false;
+        }
+
+        bool simd_scatter(const ray4& r_in4, const hit_record4& rec4, color &attenuation, ray4& scattered4) const override {
+            return false;
         }
 
     private:

@@ -1,4 +1,4 @@
-#ifndef CAMERA_H
+//#ifndef CAMERA_H
 #define CAMERA_H
 
 #include "vec3.h"
@@ -9,29 +9,70 @@
 
 #include <fstream>
 #include <iostream>
+#include <chrono>
 
 class camera {
     public:
-        int screen_width = 800;
+        int screen_width = 1200;
         double aspect_ratio = 16.0 / 9.0;
         int max_depth = 10;
+        int iterations_done = 0;
 
-        void render(const hittable &world){
+        void render(const hittable &world, const hittable &lights){
             initialize();
 
             // Rendering
             std::ofstream out_file{"out.ppm"};
             out_file << "P3\n" << screen_width << ' ' << screen_height << "\n255\n";
 
+            vector<vector<color>> grid (screen_height, vector<color> (screen_width));
+
+            auto start = std::chrono::high_resolution_clock::now();
+            auto step1 = start;
+
+            int iterations = 15;
+            /*vec4 origin4 (origin, 0.0f);
+            vec4 vertical4 (vertical.x(), vertical.y(), vertical.z(), 0);
+            vec4 horizontal4 (horizontal.x(), horizontal.y(), horizontal.z(), 0);
+            vec4 lower_left4 (lower_left.x(), lower_left.y(), lower_left.z(), 0);*/
+
+            for(int k = 0; k < iterations; k++){
+                cout << "iteration " << k << "/" << iterations << "\n";
+                for(int j = screen_height - 1; j >= 0; j--){
+                    for(int i = 0; i < screen_width; i++) {
+                        auto u = double(i) / (screen_width  - 1) + random_double(0.000001,0.002) - 0.001;
+                        auto v = double(j) / (screen_height - 1) + random_double(0.000001,0.002) - 0.001;
+                    
+                        ray r(origin, lower_left + u * horizontal + v * vertical - origin);
+                        //ray4 r4(origin4, simd_add(simd_add(lower_left4, simd_mul(horizontal4, u)), simd_minus(simd_mul(vertical4, v), origin4)));
+
+                        color pixel_color = ray_color(r, max_depth, world, lights);
+                        //color pixel_color = fast_ray_color(r, max_depth, world, lights);
+                        //color pixel_color = simd_ray_color(r4, max_depth, world, lights);
+                        
+                        if(k == 0)
+                            grid[j][i] = pixel_color;
+                        else
+                            grid[j][i] = grid[j][i] + pixel_color;
+                        
+                    }
+                }
+
+                auto step2 = std::chrono::high_resolution_clock::now();
+                auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(step2 - step1);
+                std::cout << "time: " << diff.count() << " ms" << std::endl;
+                swap(step2, step1);
+            }
+
+
+            auto end = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+            std::cout << "Execution time: " << duration.count() << " ms" << std::endl;
+            cout << "------------------ Next Stage -------------------\n\n\n";
+
             for(int j = screen_height - 1; j >= 0; j--){
                 for(int i = 0; i < screen_width; i++) {
-                    auto u = double(i) / (screen_width - 1);
-                    auto v = double(j) / (screen_height - 1);
-                    ray r(origin, lower_left + u * horizontal + v * vertical - origin);
-
-                    color pixel_color = ray_color(r, max_depth, world);
-
-                    write_color(out_file, pixel_color);
+                    write_color(out_file, grid[j][i] / iterations);
                 }
             }
         }
@@ -59,67 +100,98 @@ class camera {
             lower_left = origin - horizontal/2 - vertical/2 - vec3(0,0,focal_length);
         }
 
-        color ray_color(const ray& r, int depth, const hittable& world){
-            if(depth == 0)return color(0.1,0.1,0.1);
+        /*color simd_ray_color(const ray4& r4, int depth, const hittable& world, const hittable& lights){
+            //cout << "x: " << iterations_done++ << "\n";
+            iterations_done++;
+            if(depth <= 0)return color(0,0,0);
+            hit_record4 rec4;
+            hit_record4 light_rec4;
 
+            bool comment = false;
+
+            bool world_hit = false;
+            if(!world.simd_hit(r4, interval(0.00001, infinity), rec4)){
+                if(comment)cout << "NO WORLD HIT\n";
+                if(lights.simd_hit(r4, interval(0.00001, infinity), light_rec4)){
+                    if(comment)cout << "LIGHT HIT\n";
+                    return color(10,10,10);
+                }
+                if(comment)cout << "NO LIGHT HIT\n";
+                return color(0,0,0);
+            }
+
+            if(comment)cout << "WORLD HIT! t = " << rec4.t << "\n";
+            if(lights.simd_hit(r4, interval(0.00001, rec4.t), light_rec4)){
+                //cout << "LIGHT HIT2\n" << iterations_done;
+                return color(10,10,10);
+            }
+            if(comment)cout << "NO LIGHT HIT2\n";
+
+            ray4 scattered4;
+            color attenuation;
+
+            rec4.mat->scatter4(r4, rec4, attenuation, scattered4);
+
+            if(comment)cout << "SENDING!\n";
+            vec3 next = simd_ray_color(scattered4, depth - 1, world, lights);
+            vec3 trace = attenuation * next;
+            float t = simd_dot(r4.dir, scattered4.dir);
+            color res = trace * t;
+            return res;
+        }*/
+
+        color ray_color(const ray& r, int depth, const hittable& world, const hittable& lights){
+            if(depth == 0)return color(0,0,0);
+
+            hit_record lrec;
             hit_record rec;
             
             if(!world.hit(r, interval(0.00000001, infinity), rec)){
-                // Background Color Property
-                vec3 unit_v = unit_vector(r.direction());
-                auto t = 0.5*(unit_v.y() + 1.0);
-                return (1.0-t) * color(1.0, 1.0, 1.0) + t * color(0.5, 0.7, 1.0);
+                if(lights.hit(r, interval(0.00000001, infinity), lrec)){
+                    return color(10,10,10);
+                }
+                return color(0,0,0);
+            }
+
+            if(lights.hit(r, interval(0.00000001, rec.t), lrec)){
+                return color(10,10,10);
             }
 
             ray scattered;
             color attenuation;
-            double pdf_value;
 
             rec.mat->scatter(r, rec, attenuation, scattered);
 
-            auto on_light = point3(random_double(-60,60), 200, random_double(-60,60));
-            auto to_light = on_light - rec.p;
-            auto distance_squared = to_light.length_squared();
-            to_light = unit_vector(to_light);
+            return attenuation * ray_color(scattered, depth - 1, world, lights) * dot(r.dir, scattered.dir);
+        }
 
-            auto shadow_light = point3(0, 200, 0);
-            auto to_shadow_light = unit_vector(shadow_light - rec.p);
 
-            if (dot(to_light, rec.normal) < 0)
-                return 0.6 * attenuation * ray_color(scattered, depth - 1, world);
+        color fast_ray_color(const ray& r, int depth, const hittable& world, const hittable& lights){
+            if(depth == 0)return color(0,0,0);
 
-            //double light_area = (343-213)*(332-227);
-            double light_area = (120)*(120);
-            auto light_cosine = std::fabs(to_light.y());
-
-            if (light_cosine < 0.000001)
-                return 0.6 * attenuation * ray_color(scattered, depth - 1, world);
-
-            pdf_value = distance_squared / (light_cosine * light_area);
+            hit_record lrec;
+            hit_record rec;
             
-            ray lightray = ray(rec.p, to_light);
-            ray shadowray = ray(rec.p, to_shadow_light);
-            if(world.hit(shadowray, interval(0.00000001, infinity), rec)){
-                return 0.3 * attenuation * ray_color(scattered, depth - 1, world);
+            if(!world.fast_hit(r, interval(0.00000001, infinity), rec)){
+                if(lights.fast_hit(r, interval(0.00000001, infinity), lrec)){
+                    return color(10,10,10);
+                }
+                return color(0,0,0);
             }
 
-            if(world.hit(lightray, interval(0.00000001, infinity), rec)){
-                return 0.5 * attenuation * ray_color(scattered, depth - 1, world);
+            if(lights.fast_hit(r, interval(0.00000001, rec.t), lrec)){
+                return color(10,10,10);
             }
 
-            /*color color_from_scatter = color(1,1,1) - (attenuation * ray_color(lightray, depth-1, world))  pdf_value;
+            ray scattered;
+            color attenuation;
 
-            color next = ray_color(scattered, depth - 1, world);*/
+            rec.mat->fast_scatter(r, rec, attenuation, scattered);
 
-            return attenuation * ray_color(scattered, depth - 1, world) * interval(0.2,1).clamp(pdf_value);
-            /*
-
-            */
-
-
+            return attenuation * fast_ray_color(scattered, depth - 1, world, lights) * simd_dot(vec4(r.dir,0), vec4(scattered.dir,0));
         }
 };
 
 
 
-#endif
+//#endif

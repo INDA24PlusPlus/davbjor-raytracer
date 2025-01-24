@@ -2,6 +2,7 @@
 #define VEC3_H
 
 #include "utils.h"
+#include "vec4.h"
 
 #include <cmath>
 #include <iostream>
@@ -14,6 +15,10 @@ class vec3 {
 
         vec3() : e{0,0,0} {};
         vec3(double x, double y, double z) : e{x,y,z} {};
+
+
+        template <typename VecType>
+        vec3(const VecType& v) : e{v.x, v.y, v.z} {}
 
         double x() { return e[0]; }
         double y() { return e[1]; }
